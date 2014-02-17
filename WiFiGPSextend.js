@@ -1,30 +1,41 @@
+// cable loss
 var PXIouterTxLoss = 40;
 var PXIouterRxLoss = 40;
+// instrument address
 var PXISIGGENAddr = "GPIB0::20::INSTR";
-var PXIDIGIAddr = "GPIB0::20::INSTR";
-var PXICOMBAddr = "GPIB0::20::INSTR";
+var PXIDIGIAddr   = "GPIB0::20::INSTR";
+var PXICOMBAddr   = "GPIB0::20::INSTR";
 
-
+// TEST ITEM
 var DoWifi = true;
 var DoBlueTooth = true;
-var DoGPS = false;
+var DoGPS = true;
 
 var DoWifiRx = true;
 var DoBlueToothRx =  true;
 
 var StopCondition = false;
+// Wlan发射标准
+var WlanPwrMin     = 10;
+var WlanPwrMax     = 20;
+var WlanCurrentEvm = [-25,35];
+var WlanMaxFreq    = 25;
+var WlanSEM        = 0;
+// Wlan接收标准
+// 11M %8,54M %10
+var PerLimitArr    = [10,8];
+// 蓝牙发射功率标准
+var BTAvgPwrMin    = -6;
+var BTAvgPwrMax    = 20;
+// 蓝牙接收标准
+var m_BT_BER_limit = 0.1;
 
-var WlanPwrMin=10,WlanPwrMax=20,WlanCurrentEvm=[-25,35],WlanMaxFreq=25,WlanSEM=0; // Wlan发射标准
-var PerLimitArr = [10,8]; //11M %8,54M %10 // Wlan接收标准
-var BTAvgPwrMin = -6,BTAvgPwrMax=20; //蓝牙发射功率标准
-var m_BT_BER_limit = 0.1; // 蓝牙接收标准
-
-var GPSBaseLevel =  -100; //
+var GPSBaseLevel   = -130;
 // (CNR:carrier-to-noise ratio )(SNR；Signal-to-Noise Ratio)
 // 	CNR_Mean,Phase,TCXO_Offset,TCXO_Drift,CNR_Sigma,UpdateHz,Acquisition,BitSync,m_SVid	
-var GPSConfig = "40,0.85,42.92,0.8184,1,10,10,5,29";
-
-var ExtTryMax = 3;  // 最大尝试次数
+var GPSConfig      = "40,0.85,42.92,0.8184,1,10,10,5,29";
+// 最大尝试次数
+var ExtTryMax = 3;
 
 
 ////////////////////////////////////
@@ -120,20 +131,20 @@ if( typeof(WinThread.Platform) == 'function')
 
 			// Digitizer_Open()  ///
 			// Digitizer_Close
-			AddLog("Open Device CMW500");
+			AddLog("Open Device");
 			Ret = rf.PXI3Open(PXIDeviceDigitizer,PXIDIGIAddr);
-			if(Ret != 0) AddLog( "CMW500 Open Device FAIL"+rf.GetRFTestLog());
+			if(Ret != 0) AddLog( "Open Device FAIL"+rf.GetRFTestLog());
 			
 			Ret = rf.PXI3Open(PXIDeviceSIGGEN,PXISIGGENAddr);
-			if(Ret != 0) AddLog( "CMW500 Open Device SIGGEN FAIL");
+			if(Ret != 0) AddLog( "Open Device SIGGEN FAIL");
 			Ret = rf.PXI3Open(PXIDeviceCOMBINER,PXICOMBAddr);
-			if(Ret != 0) AddLog( "CMW500 Open Device COMBINER FAIL");
+			if(Ret != 0) AddLog( "Open Device COMBINER FAIL");
 			// WinMain.PXIWiFiFirst = true ;Wifi is first
 			
 			// WinMain.PXIWiFiFirst = true ;Wifi is first
 			//AddLog("Open Device WIFI");
 			Ret = rf.PXI3Open(PXIDeviceWIFI,PXIDIGIAddr);
-			if(Ret != 0) AddLog( "CMW500 Open Device WIFI FAIL");
+			if(Ret != 0) AddLog( "Open Device WIFI FAIL");
 			// SIGGEN_Init   // 信号始终
 
 			WinMain.PXIOpened = true;
@@ -148,9 +159,9 @@ if( typeof(WinThread.Platform) == 'function')
 			if(!DoWifi)continue;
 			if( funcId == 1){
 				rf.PXI3Close(PXIDeviceBT);
-				AddLog("CMW500 Open Device WIFI");
+				AddLog("Open Device WIFI");
 				Ret = rf.PXI3Open(PXIDeviceWIFI,PXIDIGIAddr);
-				if(Ret != 0) AddLog( "CMW500 Open(Device WIFI FAIL");
+				if(Ret != 0) AddLog( "Open Device WIFI FAIL");
 			}
 			
 			// WIFI 发射测试
@@ -250,7 +261,7 @@ if( typeof(WinThread.Platform) == 'function')
 					
 					AddLog('Control PXI WIFI SIGNAL OUTPUT ON ...');
 					Ret = rf.PXI3SIGGENOutput(1,freq,BSLevelArr[i]+RxLoss,SigArbFileArr[i]);
-					if(Ret != 0) AddLog( "CMW500 SIGGENOutput FAIL");
+					if(Ret != 0) AddLog( "SIGGENOutput FAIL");
 					
 					// 设置信道
 					Ret = obj.IWiFiTest(Task_WIFI_SET_TX_CFG,wifi_tx_cfg,0);
@@ -279,7 +290,7 @@ if( typeof(WinThread.Platform) == 'function')
 							break;
 						}
 					}
-					Ret = rf.PXI3SIGGENOutput(0,freq,0,'');
+					Ret = rf.PXI3SIGGENOutput(0,freq,0,SigArbFileArr[i]);
 					if(Ret != 0) AddLog( "PXI3SIGGENOutput STOP FAIL");
 					if( res !=0)
 					{
@@ -404,7 +415,7 @@ if( typeof(WinThread.Platform) == 'function')
 						break;
 					}
 				}
-				Ret = rf.PXI3SIGGENOutput(0,freq,BTBSLevel+RxLoss,'');
+				Ret = rf.PXI3SIGGENOutput(0,freq,BTBSLevel+RxLoss,SigArbFile);
 				if(Ret != 0) AddLog( "PXI3SIGGENOutput FAIL");
 				if(res !=0)
 				{
@@ -480,7 +491,7 @@ if( typeof(WinThread.Platform) == 'function')
 				WinMain.Ctrl.errorOccur =true;
 			}
 			// 关闭信号
-			rf.PXI3SIGGENOutput(0, GPSfreq,0,'');
+			rf.PXI3SIGGENOutput(0, GPSfreq,0,GlobalSigArbFileArr[RfType][2]);
 			//alert(obj.COM_ReadSN());
 		}
 	}
