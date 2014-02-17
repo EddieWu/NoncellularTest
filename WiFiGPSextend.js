@@ -1,27 +1,30 @@
-var PXIouterTxLoss = 20;
-var PXIouterRxLoss = 20;
-var PXISIGGENAddr = "PXI6::11::INSTR,PXI6::10::INSTR";
-var PXIDIGIAddr = "PXI6::15::INSTR,PXI6::14::INSTR";
-var PXICOMBAddr = "PXI6::12::INSTR";
+var PXIouterTxLoss = 40;
+var PXIouterRxLoss = 40;
+var PXISIGGENAddr = "GPIB0::20::INSTR";
+var PXIDIGIAddr = "GPIB0::20::INSTR";
+var PXICOMBAddr = "GPIB0::20::INSTR";
+
 
 var DoWifi = true;
-var DoBlueTooth =  true;
-var DoGPS = true;
+var DoBlueTooth = true;
+var DoGPS = false;
 
-var DoWifiRx = false;
-var DoBlueToothRx =  false;
+var DoWifiRx = true;
+var DoBlueToothRx =  true;
 
-var StopCondition = true;
+var StopCondition = false;
 
-var WlanPwrMin=5,WlanPwrMax=25,WlanCurrentEvm=35,WlanMaxFreq=25,WlanSEM=0; // Wlan发射标准
+var WlanPwrMin=10,WlanPwrMax=20,WlanCurrentEvm=[-25,35],WlanMaxFreq=25,WlanSEM=0; // Wlan发射标准
 var PerLimitArr = [10,8]; //11M %8,54M %10 // Wlan接收标准
-var BTAvgPwrMin = -6,BTAvgPwrMax=30; //蓝牙发射功率标准
+var BTAvgPwrMin = -6,BTAvgPwrMax=20; //蓝牙发射功率标准
 var m_BT_BER_limit = 0.1; // 蓝牙接收标准
 
-var GPSBaseLevel =  -120; //
-var GPSConfig = "30,0.85,42.92,0.8184,1,10,10,5,29";
+var GPSBaseLevel =  -100; //
+// (CNR:carrier-to-noise ratio )(SNR；Signal-to-Noise Ratio)
+// 	CNR_Mean,Phase,TCXO_Offset,TCXO_Drift,CNR_Sigma,UpdateHz,Acquisition,BitSync,m_SVid	
+var GPSConfig = "40,0.85,42.92,0.8184,1,10,10,5,29";
 
-var ExtTryMax = 20;  // 最大尝试次数
+var ExtTryMax = 3;  // 最大尝试次数
 
 
 ////////////////////////////////////
@@ -56,8 +59,42 @@ WinMain.PXIOpened = false;
 WinMain.PXIWiFiFirst = true ; // Wifi is first
 
 var tmpObjLog = {};// 临时变量
+var RfType; // 仪器类型
+var GlobalSigArbFileArr=[ 
+	[ ['d:\\huaqin\\802-11a_54Mbps_1000oct - MAC.aiq','d:\\huaqin\\11b11MHz.aiq'],
+		'd:\\huaqin\\BT_AABBCCDDEEFF.aiq','d:\\huaqin\\GPS_generation_6000.aiq'
+	],
+	[ ['d:\\huaqin\\LPmod\\WiFi_OFDM-54.mod','d:\\huaqin\\LPmod\\WiFi_CCK-11L.mod'],
+		'd:\\huaqin\\LPmod\\1DH1_000088C0FFEE.mod','d:\\huaqin\\GPS_generation_6000.aiq'
+	],
+	//20130329 add Start
+	[ ['MV887030A_ag_54_1000','MV887030A_b_11_1024L'],
+		'BT','GPS'
+	],
+	//20130329 add End
+	//20130330 add Start
+	[ ['D:\\Rohde-Schwarz\\CMW\\Data\\waveform\\Wifi_g_54Mbps_1000Byte_001122334455_100ns.wv','D:\\Rohde-Schwarz\\CMW\\Data\\waveform\\Wifi_b_11Mbps_1024Byte_001122334455_100ns.wv'],
+		'D:\\Rohde-Schwarz\\CMW\\Data\\waveform\\DH1_000088C0FFEE.wv','D:\\Rohde-Schwarz\\CMW\\Data\\waveform\\gps29_15S_1.wv'
+	]
+	//R&S Modify
+	//DH1_AABBCCDDEEFF.wv->DH1_000088C0FFEE.wv
+	//GPS_default.wv->gps29_15S_1.wv
+	//20130330 add End
+];
+				
 var ExtTestFun = function()
 {
+if( CfgCurrent.SetupIniHash.SystemSetting.RfTesterInstrument =='pxi3000')RfType=0;
+if( CfgCurrent.SetupIniHash.SystemSetting.RfTesterInstrument =='iqflex'){RfType=1;}
+//20130329 add Start
+if( CfgCurrent.SetupIniHash.SystemSetting.RfTesterInstrument =='mt8870'){RfType=2;}
+//alert(CfgCurrent.SetupIniHash.SystemSetting.RfTesterInstrument);
+//20130329 add End
+//20130329 add Start
+if( CfgCurrent.SetupIniHash.SystemSetting.RfTesterInstrument =='cmw500'){RfType=3;}
+//alert(CfgCurrent.SetupIniHash.SystemSetting.RfTesterInstrument);
+//20130329 add Start
+
 if( typeof(WinThread.Platform) == 'function')
 {
 	WinThread.Platform.prototype.DoExternWIFIBTGPS_FT = function(tmpTest,objLog)
@@ -83,20 +120,20 @@ if( typeof(WinThread.Platform) == 'function')
 
 			// Digitizer_Open()  ///
 			// Digitizer_Close
-			AddLog("Open PXIDeviceDigitizer");
+			AddLog("Open Device CMW500");
 			Ret = rf.PXI3Open(PXIDeviceDigitizer,PXIDIGIAddr);
-			if(Ret != 0) AddLog( "PXI3Open PXIDeviceDigitizer FAIL"+rf.GetRFTestLog());
+			if(Ret != 0) AddLog( "CMW500 Open Device FAIL"+rf.GetRFTestLog());
 			
 			Ret = rf.PXI3Open(PXIDeviceSIGGEN,PXISIGGENAddr);
-			if(Ret != 0) AddLog( "PXI3Open PXIDeviceSIGGEN FAIL");
+			if(Ret != 0) AddLog( "CMW500 Open Device SIGGEN FAIL");
 			Ret = rf.PXI3Open(PXIDeviceCOMBINER,PXICOMBAddr);
-			if(Ret != 0) AddLog( "PXI3Open PXIDeviceCOMBINER FAIL");
+			if(Ret != 0) AddLog( "CMW500 Open Device COMBINER FAIL");
 			// WinMain.PXIWiFiFirst = true ;Wifi is first
 			
 			// WinMain.PXIWiFiFirst = true ;Wifi is first
-			AddLog("Open PXIDeviceWIFI");
+			//AddLog("Open Device WIFI");
 			Ret = rf.PXI3Open(PXIDeviceWIFI,PXIDIGIAddr);
-			if(Ret != 0) AddLog( "PXI3Open PXIDeviceWIFI FAIL");
+			if(Ret != 0) AddLog( "CMW500 Open Device WIFI FAIL");
 			// SIGGEN_Init   // 信号始终
 
 			WinMain.PXIOpened = true;
@@ -111,10 +148,11 @@ if( typeof(WinThread.Platform) == 'function')
 			if(!DoWifi)continue;
 			if( funcId == 1){
 				rf.PXI3Close(PXIDeviceBT);
-				AddLog("Open PXIDeviceWIFI");
+				AddLog("CMW500 Open Device WIFI");
 				Ret = rf.PXI3Open(PXIDeviceWIFI,PXIDIGIAddr);
-				if(Ret != 0) AddLog( "PXI3Open(PXIDeviceWIFI FAIL");
+				if(Ret != 0) AddLog( "CMW500 Open(Device WIFI FAIL");
 			}
+			
 			// WIFI 发射测试
 			AddLog('Start wifi tx test ........................................');
 			var freq = 2412e6;
@@ -125,6 +163,7 @@ if( typeof(WinThread.Platform) == 'function')
 			// 循环 54M 11M
 			var txRateArr=[11,3];var PowerArr=[12,14];
 			var WlanAnalysisModeArr=[1,2];var WlanSpectralMaskTypeArr=[0,1];
+			
 			for(var i=0;i<2;i++)
 			{
 				var channel		= freq/1000;//2412000;//频率，单位为KHZ
@@ -168,7 +207,7 @@ if( typeof(WinThread.Platform) == 'function')
 					}
 					else
 					{
-						if(CheckWifiData(str,freq) )
+						if(CheckWifiData(str,freq,i) )
 						{
 							res = 0;
 							break;
@@ -194,8 +233,8 @@ if( typeof(WinThread.Platform) == 'function')
 				var RxLoss = innerRxLoss+PXIouterRxLoss;
 				// 54M 11M
 				var BSLevelArr=[-72,-85];
-				var SigArbFileArr=['d:\\huaqin\\802-11a_54Mbps_1000oct - MAC.aiq',
-					'd:\\huaqin\\11b11MHz.aiq'];
+				var SigArbFileArr=GlobalSigArbFileArr[RfType][0];
+				//AddLog(SigArbFileArr[0]);
 				for(var i=0;i<2;i++){
 					var channel		= freq/1000;//2412000;//频率，单位为KHZ
 					var bufSize			=1024;
@@ -211,7 +250,8 @@ if( typeof(WinThread.Platform) == 'function')
 					
 					AddLog('Control PXI WIFI SIGNAL OUTPUT ON ...');
 					Ret = rf.PXI3SIGGENOutput(1,freq,BSLevelArr[i]+RxLoss,SigArbFileArr[i]);
-					if(Ret != 0) AddLog( "PXI3SIGGENOutput FAIL");
+					if(Ret != 0) AddLog( "CMW500 SIGGENOutput FAIL");
+					
 					// 设置信道
 					Ret = obj.IWiFiTest(Task_WIFI_SET_TX_CFG,wifi_tx_cfg,0);
 					if(Ret != 0) AddLog( "Task_WIFI_SET_TX_CFG FAIL");
@@ -239,7 +279,7 @@ if( typeof(WinThread.Platform) == 'function')
 							break;
 						}
 					}
-					Ret = rf.PXI3SIGGENOutput(0,freq,0,SigArbFileArr[i]);
+					Ret = rf.PXI3SIGGENOutput(0,freq,0,'');
 					if(Ret != 0) AddLog( "PXI3SIGGENOutput STOP FAIL");
 					if( res !=0)
 					{
@@ -326,12 +366,22 @@ if( typeof(WinThread.Platform) == 'function')
 				AddLog('Start BT RX test ........................................');
 				var innerRxLoss = rf.PXI3GetRXLoss(freq);
 				var RxLoss = innerRxLoss+PXIouterRxLoss;
-				var BTBSLevel=-70;var SigArbFile='d:\\huaqin\\BT_AABBCCDDEEFF.aiq';
+				var BTBSLevel=-70;var SigArbFile=GlobalSigArbFileArr[RfType][1];
 				rf.PXI3SIGGENOutput(1,freq,BTBSLevel+RxLoss,SigArbFile);
 				Pattern = 4;
 				PXPackettype =4;	//4:"DH1"; 11:"DH3" ; 15:"DH5" ...	
 				RXFrequency = 0;
-				TesterAddress= "CCDDEEFF";
+				var WaveFilename = SigArbFile.split('\\').pop();
+				//AddLog( "WaveFilename="+WaveFilename);
+				if(RfType==3) //RS
+				{
+					TesterAddress = WaveFilename.substr(WaveFilename.length-11,8);
+				}
+				else
+				{
+					TesterAddress = WaveFilename.substr(WaveFilename.length-12,8);//"CCDDEEFF";
+				}
+				//AddLog( "TesterAddress="+TesterAddress);
 				var bt_rx_vfg = ExtFormat_BT_RX_CFG(Pattern,PXPackettype,RXFrequency,TesterAddress,m_BT_BER_limit);
 				Ret = obj.IBlueToothTest(Task_BT_SET_RX_CFG,bt_rx_vfg,0);
 				if(Ret != 0) AddLog( "Task_BT_SET_RX_CFG FAIL");
@@ -354,7 +404,7 @@ if( typeof(WinThread.Platform) == 'function')
 						break;
 					}
 				}
-				Ret = rf.PXI3SIGGENOutput(0,freq,BTBSLevel+RxLoss,SigArbFile);
+				Ret = rf.PXI3SIGGENOutput(0,freq,BTBSLevel+RxLoss,'');
 				if(Ret != 0) AddLog( "PXI3SIGGENOutput FAIL");
 				if(res !=0)
 				{
@@ -376,7 +426,7 @@ if( typeof(WinThread.Platform) == 'function')
 			var RxLoss = innerRxLoss+PXIouterRxLoss;
 			AddLog('GPS test........................................');
 			var level = GPSBaseLevel+RxLoss;
-			rf.PXI3SIGGENOutput(1, GPSfreq , level,'d:\\huaqin\\GPS_generation_6000.aiq');
+			rf.PXI3SIGGENOutput(1, GPSfreq , level,GlobalSigArbFileArr[RfType][2]);
 			Ret = obj.IGPSTest(0,GPSConfig );//pass config 
 			if(Ret != 0) AddLog( "IGPSTest config FAIL");
 			var bGPSResult = false;
@@ -430,7 +480,7 @@ if( typeof(WinThread.Platform) == 'function')
 				WinMain.Ctrl.errorOccur =true;
 			}
 			// 关闭信号
-			rf.PXI3SIGGENOutput(0, GPSfreq,0,'d:\\huaqin\\GPS_generation_6000.aiq');
+			rf.PXI3SIGGENOutput(0, GPSfreq,0,'');
 			//alert(obj.COM_ReadSN());
 		}
 	}
@@ -499,7 +549,7 @@ var ExtFormat_WIFI_TX_CFG = function(channel,buffsize,bLongPreamble,tx_rate,pktC
 	return wifi_tx_cfg;
 };
 /////////////////////////////
-function CheckWifiData(strData,WlanFreq)
+function CheckWifiData(strData,WlanFreq,EvmIndex)
 {
 	var arr = strData.split(',');
 	if(arr.length ==4)
@@ -509,9 +559,9 @@ function CheckWifiData(strData,WlanFreq)
 		var sem = parseFloat(arr[2]);
 		var freq = parseFloat(arr[3]);
 		var MaxFreq = WlanFreq*WlanMaxFreq/1e6;
-		var str = '{{Power:'+pwr+'}}['+WlanPwrMin+','+WlanPwrMax+'];{{EVM:'+evm+'}}['+WlanCurrentEvm+'];'+'{{SEM:'+sem+
+		var str = '{{Power:'+pwr+'}}['+WlanPwrMin+','+WlanPwrMax+'];{{EVM:'+evm+'}}['+WlanCurrentEvm[EvmIndex]+'];'+'{{SEM:'+sem+
 			'}}['+WlanSEM+'];{{'+WlanFreq/1e6+'M,Freq:'+freq+'}},[+-'+MaxFreq+']';
-		if( pwr>=WlanPwrMin && pwr<=WlanPwrMax && evm<=WlanCurrentEvm && sem>=WlanSEM && Math.abs(freq)< MaxFreq )
+		if( pwr>=WlanPwrMin && pwr<=WlanPwrMax && evm<=WlanCurrentEvm[EvmIndex] && sem>=WlanSEM && Math.abs(freq)< MaxFreq )
 		{
 			AddLog( str +' PASS');
 			return true;
